@@ -1,0 +1,30 @@
+output/
+*.mp4
+*.srt
+# Arquivos de saída e jobs
+dev/
+output/jobs/
+output/temp/
+output/out/
+output/exports/
+output/dna/
+output/*.mp4
+output/*.srt
+output/*.edl
+output/*.xml
+output/*.otio
+output/*.txt
+output/.anchors/
+
+# Configurações pessoais (cada um cria o seu)
+texideo.cfg
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Ambiente virtual (se usar)
+venv/
+.env
+*.egg-info

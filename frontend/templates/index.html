@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Texideo – edit by subtitle hashes</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <svg width="64" height="64" viewBox="0 0 64 64" style="display:block; margin:0 auto 1rem;">
+            <rect width="64" height="64" rx="12" fill="#6366f1"/>
+            <text x="32" y="44" font-size="36" font-weight="bold" fill="white" text-anchor="middle" font-family="Arial">TX</text>
+        </svg>
+        <h1>Texideo</h1>
+        <p>Edit video by editing its transcript – no timeline, just text.</p>
+    </div>
+
+    <div class="steps">
+        <button class="step-btn active" data-step="0" type="button">1. Upload</button>
+        <button class="step-btn" data-step="1" type="button">2. Edit transcript</button>
+        <button class="step-btn" data-step="2" type="button">3. Review & download</button>
+    </div>
+
+    <div id="jobIdDisplay" class="job-id-display hidden">
+        <span id="jobIdText" title="Click to copy">------</span>
+        <svg class="copy-icon" id="copyJobIdIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+    </div>
+
+    <button id="cfgPanelToggle" class="cfg-icon" title="Edit configuration">⚙</button>
+    <button id="loadJobPanelToggle" class="job-icon" title="Load existing job">📂</button>
+    <button id="toggleSizeBtn" class="toggle-size-btn" title="Toggle width">↔</button>
+
+    <!-- Config slide panel -->
+    <div id="configPanel" class="config-panel">
+        <div class="config-panel-header">
+            <h3>⚙️ config.cfg</h3>
+            <div>
+                <button id="cfgHelpBtn" title="Help">?</button>
+                <button id="cfgResetBtn" title="Reset to defaults">↺</button>
+                <button id="cfgCancelBtn" title="Cancel">✕</button>
+                <button id="cfgSaveBtn" title="Save">✔</button>
+            </div>
+        </div>
+        <textarea id="configEditor" class="config-editor" spellcheck="false"></textarea>
+    </div>
+
+    <!-- Jobs slide panel -->
+    <div id="loadJobPanel" class="job-panel">
+        <div class="job-panel-header">
+            <h3 style="font-size:0.9rem;">📂 Previous edits</h3>
+            <div style="display: flex; gap: 0.3rem;">
+                <button id="deleteAllJobsBtn" title="Delete all jobs" style="background: transparent; border: none; color: #cbd5e1; cursor: pointer; font-size: 0.75rem;">🗑️ Delete all</button>
+                <button id="closeJobPanelBtn" title="Close">✕</button>
+            </div>
+        </div>
+        <div id="jobList" class="job-list"></div>
+    </div>
+
+    <!-- Step 0: Upload -->
+    <div id="step0" class="card step-content">
+        <div class="upload-row">
+            <div class="video-upload">
+                <div class="dropzone" id="dropzone">
+                    <div>🎬 Drag & drop your video here</div>
+                    <div class="file-info" id="videoFileName">No file selected</div>
+                    <input type="file" id="videoInput" accept="video/*" style="display:none">
+                </div>
+            </div>
+            <div class="subtitle-upload">
+                <div class="dropzone" id="srtDropzone">
+                    <div>📁 Optional subtitles</div>
+                    <div class="file-info" id="srtFileName">None selected</div>
+                    <input type="file" id="srtInput" accept=".srt,.vtt,.ass,.ssa" style="display:none">
+                </div>
+                <div class="time-fields hidden" id="timeFields">
+                    <input type="number" id="startTime" step="0.1" value="0" placeholder="Start">
+                    <input type="number" id="endTime" step="0.1" value="" placeholder="End">
+                </div>
+                <div class="time-slider hidden" id="timeSlider">
+                    <input type="range" id="startSlider" min="0" max="100" value="0" step="0.1">
+                    <input type="range" id="endSlider" min="0" max="100" value="100" step="0.1">
+                </div>
+            </div>
+        </div>
+        <div class="action-area hidden" id="actionArea">
+            <button id="uploadBtn" disabled type="button" class="secondary full-width-btn">Transcribe</button>
+        </div>
+    </div>
+
+    <!-- Step 1: Edit transcript -->
+    <div id="step1" class="card step-content hidden">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom:0.5rem;">
+            <div id="progressMsg" class="file-info" style="margin-bottom:0;">Waiting...</div>
+            <button id="toggleLogBtn" class="log-toggle-btn hidden" type="button">📋 Log</button>
+        </div>
+        <div id="logPanel" class="log-panel hidden">
+            <div class="log-panel-header">
+                <span>Process log</span>
+                <button id="downloadLogBtn" type="button">⬇ Download</button>
+            </div>
+            <div id="logContent"></div>
+        </div>
+        <div id="editorArea" class="hidden">
+            <label>✏ Edit the narrative – delete or reorder lines</label>
+            <div class="lock-options">
+                <label><input type="checkbox" id="keepIntro"> 🔒 Keep all before first line <span style="font-size:0.65rem; opacity:0.7;">(experimental)</span></label>
+                <label><input type="checkbox" id="keepOutro"> 🔒 Keep all after last line <span style="font-size:0.65rem; opacity:0.7;">(experimental)</span></label>
+            </div>
+            <div id="lockedIntro" class="locked-line hidden"></div>
+            <textarea id="narrativeEditor" class="narrative-editor" rows="15" placeholder="Loading..."></textarea>
+            <div id="lockedOutro" class="locked-line hidden"></div>
+            <div class="edit-actions">
+                <div id="earlyLinks" class="early-links hidden">
+                    <a class="download-btn" id="earlyProjectLink" target="_blank">📄 project.txt</a>
+                    <a class="download-btn" id="earlyEdlLink" target="_blank">🎞 EDL</a>
+                    <a class="download-btn" id="earlyXmlLink" target="_blank">🎬 XML</a>
+                    <a class="download-btn" id="earlyOtioLink" target="_blank">📦 OTIO</a>
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-left: auto;">
+                    <button id="cutBtn" class="secondary" type="button">✂ Cut video</button>
+                    <button id="resetEditBtn" class="secondary" type="button">↺ Reset</button>
+                </div>
+            </div>
+        </div>
+        <div id="errorMsg" class="error-msg hidden"></div>
+    </div>
+
+    <!-- Step 2: Results -->
+    <div id="step2" class="card step-content hidden">
+        <div class="results-grid">
+            <div class="video-preview" id="videoContainer"></div>
+            <div id="srtDisplay" class="srt-display hidden"></div>
+        </div>
+        <div id="reviewMetrics" class="metrics"></div>
+        <div id="downloadSection"></div>
+        <button id="newVideoBtn" class="secondary full-width-btn" type="button">📁 Cut another video</button>
+    </div>
+    <footer>Texideo – GPLv3</footer>
+</div>
+
+<script>
+    let currentJobId = null;
+    let pollInterval = null;
+    let videoFile = null;
+
+    const stepBtns = document.querySelectorAll('.step-btn');
+    const steps = [document.getElementById('step0'), document.getElementById('step1'), document.getElementById('step2')];
+    const dropzone = document.getElementById('dropzone');
+    const videoInput = document.getElementById('videoInput');
+    const srtDropzone = document.getElementById('srtDropzone');
+    const srtInput = document.getElementById('srtInput');
+    const srtFileName = document.getElementById('srtFileName');
+    const videoFileName = document.getElementById('videoFileName');
+    const startInput = document.getElementById('startTime');
+    const endInput = document.getElementById('endTime');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressFill = document.getElementById('progressFill');
+    const progressMsg = document.getElementById('progressMsg');
+    const toggleLogBtn = document.getElementById('toggleLogBtn');
+    const logPanel = document.getElementById('logPanel');
+    const logContent = document.getElementById('logContent');
+    const downloadLogBtn = document.getElementById('downloadLogBtn');
+    const editorArea = document.getElementById('editorArea');
+    const narrativeEditor = document.getElementById('narrativeEditor');
+    const cutBtn = document.getElementById('cutBtn');
+    const resetEditBtn = document.getElementById('resetEditBtn');
+    const errorMsgDiv = document.getElementById('errorMsg');
+    const videoContainer = document.getElementById('videoContainer');
+    const reviewMetrics = document.getElementById('reviewMetrics');
+    const srtDisplay = document.getElementById('srtDisplay');
+    const downloadSection = document.getElementById('downloadSection');
+    const newVideoBtn = document.getElementById('newVideoBtn');
+    const earlyLinksDiv = document.getElementById('earlyLinks');
+    const earlyProjectLink = document.getElementById('earlyProjectLink');
+    const earlyEdlLink = document.getElementById('earlyEdlLink');
+    const earlyXmlLink = document.getElementById('earlyXmlLink');
+    const earlyOtioLink = document.getElementById('earlyOtioLink');
+    const jobIdDisplay = document.getElementById('jobIdDisplay');
+    const jobIdText = document.getElementById('jobIdText');
+    const copyJobIdIcon = document.getElementById('copyJobIdIcon');
+    const timeFields = document.getElementById('timeFields');
+    const actionArea = document.getElementById('actionArea');
+    const toggleSizeBtn = document.getElementById('toggleSizeBtn');
+
+    const cfgPanelToggle = document.getElementById('cfgPanelToggle');
+    const configPanel = document.getElementById('configPanel');
+    const configEditor = document.getElementById('configEditor');
+    const cfgCancelBtn = document.getElementById('cfgCancelBtn');
+    const cfgSaveBtn = document.getElementById('cfgSaveBtn');
+    const cfgResetBtn = document.getElementById('cfgResetBtn');
+    const cfgHelpBtn = document.getElementById('cfgHelpBtn');
+
+    const loadJobPanelToggle = document.getElementById('loadJobPanelToggle');
+    const loadJobPanel = document.getElementById('loadJobPanel');
+    const jobList = document.getElementById('jobList');
+    const closeJobPanelBtn = document.getElementById('closeJobPanelBtn');
+    const deleteAllJobsBtn = document.getElementById('deleteAllJobsBtn');
+    deleteAllJobsBtn.addEventListener('click', () => {
+        if (!confirm('Delete ALL jobs permanently? This cannot be undone.')) return;
+        fetch('/jobs/delete_all', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'deleted') {
+                    alert(`Deleted ${data.count} jobs.`);
+                    populateJobList();
+                } else {
+                    alert('Delete all failed: ' + (data.error || 'unknown error'));
+                }
+            })
+            .catch(err => alert('Network error: ' + err));
+    });
+
+    const startSlider = document.getElementById('startSlider');
+    const endSlider = document.getElementById('endSlider');
+    const timeSliderDiv = document.getElementById('timeSlider');
+    let videoDuration = 0;
+
+    function showUploadActions() {
+        actionArea.classList.remove('hidden');
+        timeFields.classList.remove('hidden');
+        timeSliderDiv.classList.remove('hidden');
+    }
+
+    function setJobId(id) {
+        if (id) {
+            jobIdDisplay.classList.remove('hidden');
+            jobIdText.textContent = id;
+        } else {
+            jobIdDisplay.classList.add('hidden');
+        }
+    }
+
+    jobIdText.addEventListener('click', () => {
+        navigator.clipboard.writeText(jobIdText.textContent).then(() => {
+            jobIdText.style.color = '#10b981';
+            setTimeout(() => jobIdText.style.color = '#a5f3fc', 800);
+        }).catch(() => {});
+    });
+
+    copyJobIdIcon.addEventListener('click', () => {
+        navigator.clipboard.writeText(jobIdText.textContent).then(() => {
+            jobIdText.style.color = '#10b981';
+            setTimeout(() => jobIdText.style.color = '#a5f3fc', 800);
+        }).catch(() => {});
+    });
+
+    let originalLines = [];
+    let originalNarrative = [];
+    let keepIntro = false;
+    let keepOutro = false;
+    let prevKeepIntro = false;
+    let prevKeepOutro = false;
+    const keepIntroCheck = document.getElementById('keepIntro');
+    const keepOutroCheck = document.getElementById('keepOutro');
+    const lockedIntroDiv = document.getElementById('lockedIntro');
+    const lockedOutroDiv = document.getElementById('lockedOutro');
+
+    function resetLocks() {
+        keepIntro = false;
+        keepOutro = false;
+        prevKeepIntro = false;
+        prevKeepOutro = false;
+        keepIntroCheck.checked = false;
+        keepOutroCheck.checked = false;
+        lockedIntroDiv.classList.add('hidden');
+        lockedOutroDiv.classList.add('hidden');
+    }
+
+    function updateLockedView() {
+        let lines = narrativeEditor.value.split('\n');
+        if (keepIntro && !prevKeepIntro) {
+            lines.shift();
+        } else if (!keepIntro && prevKeepIntro) {
+            lines.unshift(originalLines[0]);
+        }
+        if (keepOutro && !prevKeepOutro) {
+            lines.pop();
+        } else if (!keepOutro && prevKeepOutro) {
+            lines.push(originalLines[originalLines.length - 1]);
+        }
+        narrativeEditor.value = lines.join('\n');
+
+        if (keepIntro && originalLines.length > 0) {
+            lockedIntroDiv.textContent = originalLines[0];
+            lockedIntroDiv.classList.remove('hidden');
+        } else {
+            lockedIntroDiv.classList.add('hidden');
+        }
+        if (keepOutro && originalLines.length > 0) {
+            lockedOutroDiv.textContent = originalLines[originalLines.length - 1];
+            lockedOutroDiv.classList.remove('hidden');
+        } else {
+            lockedOutroDiv.classList.add('hidden');
+        }
+
+        prevKeepIntro = keepIntro;
+        prevKeepOutro = keepOutro;
+    }
+
+    keepIntroCheck.addEventListener('change', function() {
+        keepIntro = this.checked;
+        updateLockedView();
+    });
+    keepOutroCheck.addEventListener('change', function() {
+        keepOutro = this.checked;
+        updateLockedView();
+    });
+
+    function getFinalNarrative() {
+        let parts = [];
+        if (keepIntro && originalLines.length > 0) {
+            parts.push(originalLines[0]);
+        }
+        let middle = narrativeEditor.value.split('\n');
+        parts = parts.concat(middle);
+        if (keepOutro && originalLines.length > 0) {
+            let outro = originalLines[originalLines.length - 1];
+            if (!(keepIntro && originalLines.length === 1)) {
+                parts.push(outro);
+            }
+        }
+        return parts.join('\n');
+    }
+
+    function setActiveStep(stepIndex) {
+        steps.forEach((s, i) => {
+            if (i === stepIndex) s.classList.remove('hidden');
+            else s.classList.add('hidden');
+        });
+        stepBtns.forEach((btn, i) => {
+            if (i === stepIndex) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+    }
+
+    dropzone.addEventListener('click', () => videoInput.click());
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropzone.classList.remove('drag-over');
+        if (e.dataTransfer.files[0]) {
+            videoInput.files = e.dataTransfer.files;
+            handleVideoFile(e.dataTransfer.files[0]);
+        }
+    });
+    videoInput.addEventListener('change', () => { if (videoInput.files[0]) handleVideoFile(videoInput.files[0]); });
+
+    srtDropzone.addEventListener('click', () => srtInput.click());
+    srtDropzone.addEventListener('dragover', e => { e.preventDefault(); srtDropzone.classList.add('drag-over'); });
+    srtDropzone.addEventListener('dragleave', () => srtDropzone.classList.remove('drag-over'));
+    srtDropzone.addEventListener('drop', e => {
+        e.preventDefault();
+        srtDropzone.classList.remove('drag-over');
+        if (e.dataTransfer.files[0]) {
+            srtInput.files = e.dataTransfer.files;
+            srtFileName.textContent = e.dataTransfer.files[0].name;
+        }
+    });
+    srtInput.addEventListener('change', () => {
+        if (srtInput.files[0]) {
+            srtFileName.textContent = srtInput.files[0].name;
+        } else {
+            srtFileName.textContent = 'None selected';
+        }
+    });
+
+    function handleVideoFile(file) {
+        videoFile = file;
+        videoFileName.textContent = `${file.name} (${(file.size / 1048576).toFixed(1)} MB)`;
+        dropzone.classList.add('has-file');
+        uploadBtn.disabled = false;
+        showUploadActions();
+
+        const infoForm = new FormData();
+        infoForm.append('video', file);
+        fetch('/video_info', { method: 'POST', body: infoForm })
+            .then(res => res.json())
+            .then(data => {
+                if (data.duration) {
+                    videoDuration = data.duration;
+                    startSlider.max = 100;
+                    endSlider.max = 100;
+                    startInput.value = 0;
+                    endInput.value = data.duration.toFixed(1);
+                    updateSliderFromInputs();
+                }
+            }).catch(() => {});
+    }
+
+    function updateSliderFromInputs() {
+        if (videoDuration <= 0) return;
+        const startVal = parseFloat(startInput.value) || 0;
+        const endVal = parseFloat(endInput.value) || videoDuration;
+        startSlider.value = (startVal / videoDuration) * 100;
+        endSlider.value = (endVal / videoDuration) * 100;
+    }
+
+    function updateInputsFromSlider() {
+        if (videoDuration <= 0) return;
+        startInput.value = ((parseFloat(startSlider.value) / 100) * videoDuration).toFixed(1);
+        endInput.value = ((parseFloat(endSlider.value) / 100) * videoDuration).toFixed(1);
+    }
+
+    const MIN_GAP_PERCENT = 0.1;
+
+    function clampSliders() {
+        let start = parseFloat(startSlider.value);
+        let end = parseFloat(endSlider.value);
+
+        if (start > end - MIN_GAP_PERCENT) {
+            start = Math.max(0, end - MIN_GAP_PERCENT);
+            startSlider.value = start;
+        }
+
+        if (end < start + MIN_GAP_PERCENT) {
+            end = Math.min(100, start + MIN_GAP_PERCENT);
+            endSlider.value = end;
+        }
+
+        updateInputsFromSlider();
+    }
+
+    startSlider.addEventListener('input', clampSliders);
+    endSlider.addEventListener('input', clampSliders);
+
+    startInput.addEventListener('input', () => {
+        let val = parseFloat(startInput.value) || 0;
+        if (videoDuration > 0) startSlider.value = (val / videoDuration) * 100;
+        clampSliders();
+    });
+
+    endInput.addEventListener('input', () => {
+        let val = parseFloat(endInput.value) || videoDuration;
+        if (videoDuration > 0) endSlider.value = (val / videoDuration) * 100;
+        clampSliders();
+    });
+
+    function refreshLog() {
+        if (!currentJobId) return;
+        fetch(`/log/${currentJobId}`)
+            .then(r => r.json())
+            .then(data => {
+                logContent.textContent = data.log || '';
+                logContent.scrollTop = logContent.scrollHeight;
+            });
+    }
+
+    toggleLogBtn.addEventListener('click', () => {
+        logPanel.classList.toggle('hidden');
+        if (!logPanel.classList.contains('hidden')) refreshLog();
+    });
+
+    downloadLogBtn.addEventListener('click', () => {
+        fetch(`/log/${currentJobId}`)
+            .then(r => r.json())
+            .then(data => {
+                const blob = new Blob([data.log || ''], {type: 'text/plain'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `texideo-log-${currentJobId || 'unknown'}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+        if (!videoFile) return;
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Processing...';
+        logPanel.classList.add('hidden');
+        toggleLogBtn.classList.add('hidden');
+        const form = new FormData();
+        form.append('video', videoFile);
+        if (srtInput.files[0]) form.append('srt', srtInput.files[0]);
+        if (startInput.value) form.append('start', startInput.value);
+        if (endInput.value) form.append('end', endInput.value);
+        try {
+            const res = await fetch('/step1', { method: 'POST', body: form });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            currentJobId = data.job_id;
+            setJobId(currentJobId);
+            setActiveStep(1);
+            startPolling();
+        } catch (err) {
+            showError(err.message);
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Transcribe';
+        }
+    });
+
+    function startPolling() {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(async () => {
+            try {
+                const res = await fetch(`/status/${currentJobId}`);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                if (data.status === 'failed') throw new Error(data.error || 'Job failed');
+                if (data.progress !== undefined) {
+                    progressFill.style.width = (data.progress * 100) + '%';
+                    progressMsg.textContent = data.message || 'Processing...';
+                }
+                if (data.status === 'processing' || data.status === 'cutting') {
+                    toggleLogBtn.classList.remove('hidden');
+                    refreshLog();
+                }
+                if (data.status === 'ready_for_edit' && data.narrative) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                    setJobId(currentJobId);
+                    originalLines = data.narrative.split('\n');
+                    originalNarrative = data.original_narrative ? data.original_narrative.split('\n') : originalLines;
+                    narrativeEditor.value = data.narrative;
+                    resetLocks();
+                    editorArea.classList.remove('hidden');
+                    progressMsg.textContent = 'Ready to edit. Modify lines, then click "Cut video".';
+                    refreshLog();
+                }
+                if (data.status === 'review') {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                    setJobId(currentJobId);
+                    showResults(data);
+                    setActiveStep(2);
+                    refreshLog();
+                }
+            } catch (err) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+                showError(err.message);
+            }
+        }, 1500);
+    }
+
+    function showError(msg) {
+        errorMsgDiv.textContent = msg;
+        errorMsgDiv.classList.remove('hidden');
+        setTimeout(() => errorMsgDiv.classList.add('hidden'), 8000);
+    }
+
+    // Modal with format selector and adaptive fields
+    function showFfmpegModal(callback) {
+        const old = document.getElementById('customModal');
+        if (old) old.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'customModal';
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal-content">
+                <h3>⚙️ Export settings</h3>
+                <label style="font-size:0.7rem; margin-bottom:0.2rem;">Format:
+                    <select id="customOutputFormat">
+                        <option value="h264" selected>Video (H.264/HEVC/VP9)</option>
+                        <option value="prores">ProRes (video)</option>
+                        <option value="audio_mp3">MP3 (audio only)</option>
+                        <option value="audio_wav">WAV (audio only)</option>
+                        <option value="original">Original (copy) ⚠️</option>
+                    </select>
+                    <span id="originalWarning" style="display:none;color:#fbbf24;font-size:0.65rem;">⚠️ May cause glitches</span>
+                </label>
+                <div id="videoSettings">
+                    <label>Video codec:
+                        <select id="customVcodec">
+                            <option value="libx264">libx264 (H.264)</option>
+                            <option value="libx265">libx265 (H.265/HEVC)</option>
+                            <option value="libvpx-vp9">libvpx-vp9 (VP9)</option>
+                        </select>
+                    </label>
+                    <label>CRF: <input type="number" id="customCrf" value="18" min="0" max="51"></label>
+                    <label>Preset:
+                        <select id="customPreset">
+                            <option value="ultrafast">ultrafast</option>
+                            <option value="superfast">superfast</option>
+                            <option value="veryfast">veryfast</option>
+                            <option value="faster">faster</option>
+                            <option value="fast" selected>fast</option>
+                            <option value="medium">medium</option>
+                            <option value="slow">slow</option>
+                            <option value="slower">slower</option>
+                            <option value="veryslow">veryslow</option>
+                        </select>
+                    </label>
+                    <label>GOP: <input type="number" id="customGop" value="1" min="0"></label>
+                </div>
+                <div id="proresSettings" style="display:none;">
+                    <label>ProRes profile:
+                        <select id="customProresProfile">
+                            <option value="proxy">proxy (lightest)</option>
+                            <option value="lt" selected>lt</option>
+                            <option value="standard">standard</option>
+                            <option value="hq">hq (highest quality)</option>
+                        </select>
+                    </label>
+                </div>
+                <label>Audio codec:
+                    <select id="customAudioCodecSelect">
+                        <option value="aac" selected>AAC</option>
+                        <option value="mp3">MP3</option>
+                        <option value="libopus">Opus</option>
+                        <option value="pcm_s16le">PCM 16-bit</option>
+                    </select>
+                </label>
+                <div style="display:flex; align-items:center; gap:0.4rem; margin-top:0.4rem;">
+                    <div style="flex:1;">
+                        <label style="margin:0;">Bitrate: <input type="text" id="customAudioBitrate" value="256k" style="width:100%; padding:0.3rem 0.5rem; font-size:0.7rem;"></label>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.2rem;">
+                        <input type="checkbox" id="customVbr">
+                        <label for="customVbr" style="margin:0; font-size:0.65rem;">VBR</label>
+                    </div>
+                </div>
+                <div id="audioQualityRow" style="display:none; margin-top:0.3rem;">
+                    <label>VBR Quality (0-10): <input type="number" id="customAudioQuality" value="2" min="0" max="10" step="0.1" style="width:100%; padding:0.3rem 0.5rem; font-size:0.7rem;"></label>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.3rem; margin-top:0.6rem;">
+                    <label style="flex:1; margin:0;">Profile:
+                        <select id="profileSelect" style="width:100%;">
+                            <option value="">-- Default --</option>
+                        </select>
+                    </label>
+                    <button id="deleteProfileBtn" class="secondary" type="button" style="padding:0.2rem 0.5rem; font-size:0.7rem;" title="Delete selected profile">🗑️</button>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.3rem; margin-top:0.4rem;">
+                    <label style="flex:1; margin:0;">Save as: <input type="text" id="saveProfileName" placeholder="profile_name" style="width:100%; padding:0.3rem 0.5rem; font-size:0.7rem;"></label>
+                    <button id="saveProfileBtn" class="secondary" type="button" style="padding:0.2rem 0.5rem; font-size:0.7rem;">Save</button>
+                </div>
+                <div class="modal-actions" style="margin-top:0.6rem;">
+                    <button id="resetParamsBtn" class="secondary" type="button" style="padding:0.3rem 0.6rem; font-size:0.7rem;">Defaults</button>
+                    <button id="cancelCustomBtn" class="secondary" type="button" style="padding:0.3rem 0.6rem; font-size:0.7rem;">Cancel</button>
+                    <button id="applyCustomBtn" type="button" style="padding:0.3rem 0.6rem; font-size:0.7rem;">Export ✂</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const profileSelect = document.getElementById('profileSelect');
+        const deleteProfileBtn = document.getElementById('deleteProfileBtn');
+        deleteProfileBtn.addEventListener('click', () => {
+            const name = profileSelect.value;
+            if (!name) return;
+            if (!confirm(`Delete profile "${name}"?`)) return;
+            fetch(`/profiles/delete/${name}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'deleted') {
+                        loadProfileList();
+                        alert('Profile deleted');
+                    } else {
+                        alert('Delete failed: ' + (data.error || 'unknown error'));
+                    }
+                })
+                .catch(() => alert('Network error'));
+        });
+        // Auto‑load profile when an option is selected
+        profileSelect.addEventListener('change', () => {
+            const name = profileSelect.value;
+            if (!name) return;
+            fetch(`/profiles/load/${name}`)
+                .then(r => r.json())
+                .then(params => {
+                    fillCustomForm(params);
+                })
+                .catch(() => {});  // silently ignore errors – fields just stay unchanged
+        });
+        const customVcodec = document.getElementById('customVcodec');
+        const customCrf = document.getElementById('customCrf');
+        const customPreset = document.getElementById('customPreset');
+        const customGop = document.getElementById('customGop');
+        const customProresProfile = document.getElementById('customProresProfile');
+        const customAudioCodecSelect = document.getElementById('customAudioCodecSelect');
+        const customAudioBitrate = document.getElementById('customAudioBitrate');
+        const saveProfileName = document.getElementById('saveProfileName');
+        const saveProfileBtn = document.getElementById('saveProfileBtn');
+        const resetParamsBtn = document.getElementById('resetParamsBtn');
+        const cancelCustomBtn = document.getElementById('cancelCustomBtn');
+        const applyCustomBtn = document.getElementById('applyCustomBtn');
+        const customVbr = document.getElementById('customVbr');
+        const audioBitrateRow = document.getElementById('audioBitrateRow');
+        const audioQualityRow = document.getElementById('audioQualityRow');
+        const customAudioQuality = document.getElementById('customAudioQuality');
+        const customOutputFormat = document.getElementById('customOutputFormat');
+        const originalWarning = document.getElementById('originalWarning');
+
+        function updateModalFields() {
+            const fmt = customOutputFormat.value;
+            const videoSet = document.getElementById('videoSettings');
+            const proresSet = document.getElementById('proresSettings');
+            const vcodecSelect = customVcodec;
+            const audioSelect = customAudioCodecSelect;
+            const bitrateRow = audioBitrateRow;
+            const qualityRow = audioQualityRow;
+            const vbrCheck = customVbr;
+
+            originalWarning.style.display = (fmt === 'original') ? 'inline' : 'none';
+
+            if (fmt === 'original') {
+                videoSet.style.display = 'none';
+                proresSet.style.display = 'none';
+                audioSelect.value = 'copy';
+                audioSelect.disabled = true;
+                bitrateRow.style.display = 'none';
+                qualityRow.style.display = 'none';
+                vbrCheck.checked = false;
+                vbrCheck.disabled = true;
+            } else if (fmt.startsWith('audio_')) {
+                videoSet.style.display = 'none';
+                proresSet.style.display = 'none';
+                audioSelect.disabled = false;
+                if (fmt === 'audio_mp3') {
+                    audioSelect.value = 'mp3';
+                } else {
+                    audioSelect.value = 'pcm_s16le';
+                }
+                bitrateRow.style.display = vbrCheck.checked ? 'none' : 'block';
+                qualityRow.style.display = vbrCheck.checked ? 'block' : 'none';
+                vbrCheck.disabled = false;
+            } else if (fmt === 'prores') {
+                videoSet.style.display = 'none';
+                proresSet.style.display = 'block';
+                audioSelect.value = 'pcm_s16le';
+                audioSelect.disabled = true;
+                bitrateRow.style.display = 'none';
+                qualityRow.style.display = 'none';
+                vbrCheck.checked = false;
+                vbrCheck.disabled = true;
+            } else { // h264
+                videoSet.style.display = 'block';
+                proresSet.style.display = 'none';
+                audioSelect.disabled = false;
+                if (customVcodec.value === 'libvpx-vp9') {
+                    audioSelect.value = 'libopus';
+                } else {
+                    audioSelect.value = 'aac';
+                }
+                bitrateRow.style.display = vbrCheck.checked ? 'none' : 'block';
+                qualityRow.style.display = vbrCheck.checked ? 'block' : 'none';
+                vbrCheck.disabled = false;
+            }
+        }
+
+        customOutputFormat.addEventListener('change', updateModalFields);
+        customVcodec.addEventListener('change', function() {
+            if (this.value === 'libvpx-vp9') {
+                customAudioCodecSelect.value = 'libopus';
+            } else {
+                customAudioCodecSelect.value = 'aac';
+            }
+        });
+        customVbr.addEventListener('change', updateModalFields);
+
+        function closeModal() { overlay.remove(); }
+
+        function loadProfileList() {
+            fetch('/profiles')
+                .then(r => r.json())
+                .then(names => {
+                    profileSelect.innerHTML = '<option value="">-- Default --</option>';
+                    names.forEach(n => {
+                        const opt = document.createElement('option');
+                        opt.value = n;
+                        opt.textContent = n;
+                        profileSelect.appendChild(opt);
+                    });
+                })
+                .catch(() => {});
+        }
+
+        function fillCustomForm(params) {
+            // Infer output_format if missing (for profiles saved before the format selector existed)
+            if (!params.output_format) {
+                if (params.prores_profile || (params.acodec === 'pcm_s16le' && !params.vcodec)) {
+                    params.output_format = 'prores';
+                } else if (params.acodec === 'mp3' || params.acodec === 'libmp3lame') {
+                    params.output_format = 'audio_mp3';
+                } else if (params.acodec === 'pcm_s16le' && !params.vcodec) {
+                    params.output_format = 'audio_wav';
+                } else if (params.vcodec === 'copy') {
+                    params.output_format = 'original';
+                } else {
+                    params.output_format = 'h264';
+                }
+            }
+
+            customOutputFormat.value = params.output_format;
+            customVcodec.value = params.vcodec || 'libx264';
+            customCrf.value = params.crf || 18;
+            customPreset.value = params.preset || 'fast';
+            customGop.value = params.gop !== undefined ? params.gop : 1;
+            customProresProfile.value = params.prores_profile || 'lt';
+            customAudioCodecSelect.value = params.acodec || 'aac';
+            customAudioBitrate.value = params.audio_bitrate || '256k';
+            customAudioQuality.value = params.audio_quality || 2;
+            customVbr.checked = params.vbr || false;
+
+            updateModalFields();
+            // Trigger a change event in case any dependent logic listens to it
+            customOutputFormat.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        function getCustomParams() {
+            return {
+                output_format: customOutputFormat.value,
+                vcodec: customVcodec.value,
+                crf: parseInt(customCrf.value),
+                preset: customPreset.value,
+                gop: parseInt(customGop.value),
+                prores_profile: customProresProfile.value,
+                acodec: customAudioCodecSelect.value,
+                audio_bitrate: customAudioBitrate.value,
+                audio_quality: parseFloat(customAudioQuality.value),
+                vbr: customVbr.checked
+            };
+        }
+
+        resetParamsBtn.addEventListener('click', () => fillCustomForm({
+            output_format: 'h264',
+            vcodec: 'libx264', crf: 18, preset: 'fast', gop: 1,
+            prores_profile: 'lt', acodec: 'aac', audio_bitrate: '256k',
+            audio_quality: 2, vbr: false
+        }));
+
+        cancelCustomBtn.addEventListener('click', closeModal);
+        applyCustomBtn.addEventListener('click', () => { const params = getCustomParams(); closeModal(); callback(params); });
+
+        saveProfileBtn.addEventListener('click', () => {
+            const name = saveProfileName.value.trim();
+            if (!name) return alert('Profile name required');
+            const params = getCustomParams();
+            fetch('/profiles/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, params})
+            }).then(() => { loadProfileList(); alert('Profile saved'); })
+              .catch(() => alert('Failed to save profile'));
+        });
+
+        loadProfileList();
+        fillCustomForm({
+            output_format: 'h264',
+            vcodec: 'libx264', crf: 18, preset: 'fast', gop: 1,
+            prores_profile: 'lt', acodec: 'aac', audio_bitrate: '256k',
+            audio_quality: 2, vbr: false
+        });
+    }
+
+    cutBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (cutBtn.disabled) return;
+
+        showFfmpegModal(async (params) => {
+            cutBtn.disabled = true;
+            cutBtn.textContent = 'Cutting...';
+            logPanel.classList.add('hidden');
+            toggleLogBtn.classList.remove('hidden');
+            const form = new FormData();
+            form.append('job_id', currentJobId);
+            form.append('narrative', getFinalNarrative());
+            form.append('output_format', params.output_format);
+            form.append('keep_intro', keepIntro ? '1' : '0');
+            form.append('keep_outro', keepOutro ? '1' : '0');
+            form.append('custom_params', JSON.stringify(params));
+
+            // Activate early download links only now
+            earlyProjectLink.href = `/project/${currentJobId}`;
+            earlyEdlLink.href = `/export/${currentJobId}/edl`;
+            earlyXmlLink.href = `/export/${currentJobId}/xml`;
+            earlyOtioLink.href = `/export/${currentJobId}/otio`;
+            earlyLinksDiv.classList.remove('hidden');
+
+            try {
+                const res = await fetch('/step2', { method: 'POST', body: form });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                startPolling();
+            } catch (err) {
+                showError(err.message);
+                cutBtn.disabled = false;
+                cutBtn.textContent = '✂ Cut video';
+                earlyLinksDiv.classList.add('hidden');
+            }
+        });
+    });
+
+    resetEditBtn.addEventListener('click', () => {
+        resetLocks();
+        narrativeEditor.value = (originalNarrative && originalNarrative.length) ? originalNarrative.join('\n') : originalLines.join('\n');
+    });
+
+    function showResults(data) {
+        const outputFormat = data.output_format || 'h264';
+        if (outputFormat === 'prores') {
+            videoContainer.innerHTML = `<div>🎬 ProRes file ready for download.<br>Preview not available in browser.</div>`;
+        } else if (outputFormat.startsWith('audio_')) {
+            videoContainer.innerHTML = `<audio controls autoplay><source src="/download/${currentJobId}/final.mp3"></audio>`;
+        } else {
+            let videoFile = 'final.mp4';
+            if (data.files && data.files.length > 0) {
+                for (const f of data.files) {
+                    if (f.startsWith('final.') && !f.endsWith('.srt')) {
+                        videoFile = f;
+                        break;
+                    }
+                }
+            }
+            videoContainer.innerHTML = `<video controls autoplay><source src="/download/${currentJobId}/${videoFile}"></video>`;
+        }
+
+        const r = data.review || {};
+        const accuracy = r.accuracy !== undefined ? r.accuracy : '?';
+        const f1 = r.f1 !== undefined ? r.f1 : '?';
+        const matched = r.matched !== undefined ? r.matched : 0;
+        const total = r.total !== undefined ? r.total : 0;
+        const missing = r.missing ? r.missing.slice(0,5) : [];
+        const extra = r.extra ? r.extra.slice(0,5) : [];
+
+        let metricsHtml = `
+            <div class="metric"><div class="metric-value">${accuracy}%</div><div class="metric-label">Accuracy</div></div>
+            <div class="metric"><div class="metric-value">${f1}%</div><div class="metric-label">F1 Score</div></div>
+            <div class="metric"><div class="metric-value">${matched}/${total}</div><div class="metric-label">Words matched</div></div>
+        `;
+        if (missing.length) {
+            metricsHtml += `<div class="metric" style="color:#f87171">⚠ Missing: ${missing.join(', ')}</div>`;
+        }
+        if (extra.length) {
+            metricsHtml += `<div class="metric" style="color:#fbbf24">➕ Extra: ${extra.join(', ')}</div>`;
+        }
+        reviewMetrics.innerHTML = metricsHtml;
+
+        if (data.srt_content) {
+            srtDisplay.classList.remove('hidden');
+            srtDisplay.innerHTML = `<strong>📝 Subtitle text</strong><br><pre style="white-space:pre-wrap; font-family:monospace; font-size:0.8rem;">${escapeHtml(data.srt_content)}</pre>`;
+        } else {
+            srtDisplay.classList.add('hidden');
+        }
+
+        const files = data.files || [];
+        let downloadHtml = '<div class="download-links">';
+        files.forEach(f => {
+            const sz = data.sizes && data.sizes[f] ? data.sizes[f] : '';
+            downloadHtml += `<a class="download-btn" href="/download/${currentJobId}/${f}" download>⬇ ${f} ${sz}</a>`;
+        });
+        downloadHtml += `<a class="download-btn" href="/project/${currentJobId}" download>📄 project.txt (Edit file)</a>`;
+        downloadHtml += `<a class="download-btn" href="/export/${currentJobId}/edl" download>🎞 Export EDL</a>`;
+        downloadHtml += `<a class="download-btn" href="/export/${currentJobId}/xml" download>🎬 Export XML</a>`;
+        downloadHtml += `<a class="download-btn" href="/export/${currentJobId}/otio" download>📦 Export OTIO</a>`;
+        downloadHtml += `<a class="download-btn" id="finalLogDownload" style="cursor:pointer;">📋 Download log</a>`;
+        downloadHtml += '</div>';
+        downloadSection.innerHTML = downloadHtml;
+
+        document.getElementById('finalLogDownload').addEventListener('click', () => {
+            fetch(`/log/${currentJobId}`)
+                .then(r => r.json())
+                .then(logData => {
+                    const blob = new Blob([logData.log || ''], {type: 'text/plain'});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `texideo-log-${currentJobId || 'unknown'}.txt`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                });
+        });
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    async function loadJob(jobId) {
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        currentJobId = jobId;
+        setJobId(jobId);
+        try {
+            const res = await fetch(`/status/${jobId}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            if (data.status === 'ready_for_edit' && data.narrative) {
+                originalLines = data.narrative.split('\n');
+                originalNarrative = data.original_narrative ? data.original_narrative.split('\n') : originalLines;
+                narrativeEditor.value = data.narrative;
+                resetLocks();
+                editorArea.classList.remove('hidden');
+                setActiveStep(1);
+                progressMsg.textContent = 'Loaded. Ready to edit.';
+                refreshLog();
+            } else if (data.status === 'review') {
+                const projRes = await fetch(`/project/${jobId}`);
+                if (projRes.ok) {
+                    const text = await projRes.text();
+                    if (text && text.trim()) {
+                        originalLines = text.split('\n');
+                        originalNarrative = data.original_narrative ? data.original_narrative.split('\n') : originalLines;
+                        narrativeEditor.value = text;
+                        resetLocks();
+                        editorArea.classList.remove('hidden');
+                        setActiveStep(1);
+                        progressMsg.textContent = 'Re‑edit mode. Make changes and cut again.';
+                        refreshLog();
+                        return;
+                    }
+                }
+                showResults(data);
+                setActiveStep(2);
+                refreshLog();
+            } else if (data.status === 'processing' || data.status === 'cutting') {
+                setActiveStep(1);
+                toggleLogBtn.classList.remove('hidden');
+                logPanel.classList.add('hidden');
+                startPolling();
+            } else {
+                showError('Job not ready or failed.');
+            }
+        } catch(e) {
+            showError('Could not load job');
+        }
+    }
+
+    async function populateJobList() {
+        jobList.innerHTML = '';
+        try {
+            const res = await fetch('/jobs');
+            const jobs = await res.json();
+            if (jobs.length === 0) {
+                jobList.innerHTML = '<div style="padding:1rem; color:#6b7280;">No previous edits.</div>';
+                return;
+            }
+            jobs.forEach(job => {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.alignItems = 'center';
+                row.style.justifyContent = 'space-between';
+                row.style.marginBottom = '0.3rem';
+
+                const btn = document.createElement('button');
+                btn.className = 'secondary';
+                btn.style.flex = '1';
+                btn.style.textAlign = 'left';
+                btn.textContent = `${job.id} — ${job.video_name}`;
+                btn.addEventListener('click', () => {
+                    loadJob(job.id);
+                    loadJobPanel.classList.remove('open');
+                });
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'secondary';
+                delBtn.style.marginLeft = '0.4rem';
+                delBtn.style.padding = '0.2rem 0.5rem';
+                delBtn.style.fontSize = '0.8rem';
+                delBtn.innerHTML = '🗑️';
+                delBtn.title = 'Delete permanently';
+                delBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteJob(job.id);
+                });
+
+                row.appendChild(btn);
+                row.appendChild(delBtn);
+                jobList.appendChild(row);
+            });
+        } catch(e) {
+            jobList.innerHTML = '<div style="padding:1rem; color:#f87171;">Failed to load jobs.</div>';
+        }
+    }
+
+    async function deleteJob(jobId) {
+        if (!confirm(`Permanently delete job ${jobId}?`)) return;
+        try {
+            const res = await fetch(`/job/${jobId}/delete`, { method: 'POST' });
+            const data = await res.json();
+            if (data.status === 'deleted') {
+                populateJobList();
+            } else {
+                alert('Delete failed: ' + (data.error || 'unknown error'));
+            }
+        } catch(e) {
+            alert('Network error: ' + e);
+        }
+    }
+
+    loadJobPanelToggle.addEventListener('click', () => {
+        loadJobPanel.classList.toggle('open');
+        if (loadJobPanel.classList.contains('open')) {
+            populateJobList();
+        }
+    });
+
+    closeJobPanelBtn.addEventListener('click', () => {
+        loadJobPanel.classList.remove('open');
+    });
+
+    cfgPanelToggle.addEventListener('click', () => {
+        configPanel.classList.toggle('open');
+        if (configPanel.classList.contains('open')) {
+            fetch('/config/load')
+                .then(r => r.json())
+                .then(cfg => {
+                    configEditor.value = JSON.stringify(cfg, null, 2);
+                })
+                .catch(err => configEditor.value = 'Error loading config.');
+        }
+    });
+
+    cfgCancelBtn.addEventListener('click', () => {
+        configPanel.classList.remove('open');
+    });
+
+    cfgSaveBtn.addEventListener('click', () => {
+        let newConfig;
+        try {
+            newConfig = JSON.parse(configEditor.value);
+        } catch(e) {
+            alert('Invalid JSON. Please correct it.');
+            return;
+        }
+        fetch('/config/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(newConfig)
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.status === 'saved') {
+                alert('Configuration saved successfully.');
+                configPanel.classList.remove('open');
+            } else {
+                alert('Save failed: ' + (res.error || 'unknown error'));
+            }
+        })
+        .catch(err => alert('Network error: ' + err));
+    });
+
+    cfgResetBtn.addEventListener('click', () => {
+        if (!confirm('Reset configuration to defaults? This will overwrite the server config.')) return;
+        fetch('/config/reset', { method: 'POST' })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === 'reset') {
+                    configEditor.value = JSON.stringify(res.defaults, null, 2);
+                    alert('Defaults loaded. Click Save to apply.');
+                } else {
+                    alert('Reset failed: ' + (res.error || 'unknown error'));
+                }
+            })
+            .catch(err => alert('Network error: ' + err));
+    });
+
+    cfgHelpBtn.addEventListener('click', () => {
+        alert(
+            'Texideo config help:\n\n' +
+            '- Each section has a prefix like "01_transcriber".\n' +
+            '- Change "executable" to swap the tool (e.g., curl for API).\n' +
+            '- Placeholders like {model} are filled automatically.\n' +
+            '- Add extra ffmpeg options in ffmpeg_defaults.extra.\n' +
+            '- max_pad and internal_pad control cutting safety margins.\n' +
+            '- Click Reset to restore defaults, then Save to apply.\n\n' +
+            'Full docs at: https://github.com/1mknon/texideo'
+        );
+    });
+
+    toggleSizeBtn.addEventListener('click', () => {
+        document.querySelector('.container').classList.toggle('wide');
+    });
+
+    newVideoBtn.addEventListener('click', () => {
+        window.location.reload();
+    });
+</script>
+</body>
+</html>
