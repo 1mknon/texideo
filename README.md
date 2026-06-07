@@ -1,5 +1,7 @@
 # Texideo
 
+<video src="https://github.com/1mknon/texideo/releases/download/v1.0.0/demo.mp4" controls width="100%"></video>
+
 **Video editing by text editing — simple as it should be.**
 
 Texideo allows video editing from subtitle's timestamp changes. Each line is turned into a short hash (`md5(text + start_time)`), creating stable anchors that survive reordering, slight text changes, or differences in framerate. The result: frame‑accurate cuts without manual timeline scrubbing.
