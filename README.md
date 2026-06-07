@@ -1,6 +1,6 @@
 # Texideo
 
-<video src="https://github.com/1mknon/texideo/releases/download/v1.0.0/demo.mp4" controls width="100%"></video>
+[![Texideo Demo](https://github.com/1mknon/texideo/releases/download/v1.0.0/thumbnail.png)](https://github.com/1mknon/texideo/releases/download/v1.0.0/demo.mp4)
 
 **Video editing by text editing — simple as it should be.**
 
