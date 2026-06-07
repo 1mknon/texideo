@@ -17,7 +17,7 @@ output/*.txt
 output/.anchors/
 
 # Configurações pessoais (cada um cria o seu)
-texideo.cfg
+config.cfg
 
 # Python cache
 __pycache__/
